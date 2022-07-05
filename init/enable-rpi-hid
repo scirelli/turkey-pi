@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+# The configuration is volatile, so it must be run on each startup.
+
+# Adapted from https://raw.githubusercontent.com/mtlynch/key-mime-pi/4a2ed0e6d79019e2ba7789cd137919b5fcde6a81/enable-usb-hid
+# Docs https://www.kernel.org/doc/Documentation/usb/gadget_configfs.txt
+# Docs https://www.kernel.org/doc/html/v4.19/driver-api/usb/gadget.html
+# https://www.kernel.org/doc/Documentation/usb/gadget-testing.txt   of interest is 6. HID function
+# Tutorial: https://www.isticktoit.net/?p=1383
+# https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf page 53 has Usage Page
+# https://usb.org/document-library/hid-usage-tables-13
+# https://github.com/tmk/tmk_keyboard/wiki/USB:-Descriptor#usb-descriptor-dumper
+# http://eleccelerator.com/usbdescreqparser/
+
+set -euxo pipefail
+
+cd /sys/kernel/config/usb_gadget/
+mkdir -p g1    # g1 = gadget 1
+cd g1
+
+echo 0x1d6b > idVendor  # Linux Foundation              # Vendor ID list: http://www.linux-usb.org/usb.ids
+echo 0x0104 > idProduct # Multifunction Composite Gadget
+echo 0x0100 > bcdDevice # v1.0.0        # user defined
+echo 0x0200 > bcdUSB    # USB2          # Initialize this descriptor to the USB version that the device supports. Acceptable values are 0x0110, 0x0200, 0x0300, 0x0310. https://developer.apple.com/documentation/iousbhost/iousbhostiosourcedescriptors/3181692-bcdusb
+
+STRINGS_DIR="strings/0x409"     # Language id https://www.science.co.il/language/Locale-codes.php
+mkdir -p "$STRINGS_DIR"
+echo "E8624758475EE0358BC53" > "${STRINGS_DIR}/serialnumber"
+echo "turkey-pi" > "${STRINGS_DIR}/manufacturer"
+echo "Generic USB Keyboard" > "${STRINGS_DIR}/product"
+
+# https://www.kernel.org/doc/Documentation/usb/gadget-testing.txt see section 6 says subclass should be 1
+# https://docs.kernel.org/usb/gadget_hid.html shows subclass as 0 /* No subclass */
+# 0 No subclass
+# 1 Boot Interface
+# 2 - 255 Reserved
+#4.2 Subclass https://www.usb.org/sites/default/files/documents/hid1_11.pdf
+# During the early development of the HID specification, subclasses were intended
+# to be used to identify the specific protocols of different types of HID class
+# devices. While this mirrors the model currently in use by the industry (all devices
+# use protocols defined by similar popular devices), it quickly became apparent that
+# this approach was too restrictive. That is, devices would need to fit into narrowly
+# defined subclasses and would not be able to provide any functionality beyond that
+# supported by the subclass.
+#
+# The HID committee agreed on the improbability that subclass protocols for all
+# possible (and yet to be conceived) devices could be defined. In addition, many
+# known devices seemed to straddle multiple classifications—for example,
+# keyboards with locators, or locators that provided keystrokes. Consequently, the
+# HID class does not use subclasses to define most protocols. Instead, a HID class
+# device identifies its data protocol and the type of data provided within its Report
+# descriptor.
+#
+# The Report descriptor is loaded and parsed by the HID class driver as soon as the
+# device is detected. Protocols for existing and new devices are created by mixing
+# data types within the Report descriptor.
+FUNCTIONS_DIR="functions/hid.usb0"
+mkdir -p "$FUNCTIONS_DIR"
+echo 1 > "${FUNCTIONS_DIR}/protocol" # Keyboard
+echo 0 > "${FUNCTIONS_DIR}/subclass" # No subclass
+echo 8 > "${FUNCTIONS_DIR}/report_length"
+# Write the report descriptor
+# Source: https://www.kernel.org/doc/html/latest/usb/gadget_hid.html
+# Tutorial on how to write these HID reports https://eleccelerator.com/tutorial-about-usb-hid-report-descriptors/
+echo -ne \\x05\\x01\\x09\\x06\\xa1\\x01\\x05\\x07\\x19\\xe0\\x29\\xe7\\x15\\x00\\x25\\x01\\x75\\x01\\x95\\x08\\x81\\x02\\x95\\x01\\x75\\x08\\x81\\x03\\x95\\x05\\x75\\x01\\x05\\x08\\x19\\x01\\x29\\x05\\x91\\x02\\x95\\x01\\x75\\x03\\x91\\x03\\x95\\x06\\x75\\x08\\x15\\x00\\x25\\x65\\x05\\x07\\x19\\x00\\x29\\x65\\x81\\x00\\xc0 > "${FUNCTIONS_DIR}/report_desc"
+# Parsed using http://eleccelerator.com/usbdescreqparser/
+# 0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+# 0x09, 0x06,        // Usage (Keyboard)
+# 0xA1, 0x01,        // Collection (Application)
+#                    // -- Modifier Flags --
+# 0x05, 0x07,        //   Usage Page (Kbrd/Keypad button) For modifier keys
+# 0x19, 0xE0,        //   Usage Minimum (0xE0)  Min is LeftControl
+# 0x29, 0xE7,        //   Usage Maximum (0xE7)  Max is Right GUI Key (window key)
+# 0x15, 0x00,        //   Logical Minimum (0)   It's a button so it's 0 or 1
+# 0x25, 0x01,        //   Logical Maximum (1)
+# 0x75, 0x01,        //   Report Size (1)       Width of the field is 1 bit
+# 0x95, 0x08,        //   Report Count (8)      And we want 8 fields
+# 0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Undefined for input,Bit field) It's a button input (sent from keyboard to host), absolute because it's a button
+#                    // These items above describe a field for input, a total of 8 bits, each bit represents a button respectively from left ctrl key to right GUI key. These 8 bits constitute just one byte, which is located in the first byte of the report.  Its lowest bit, bit-0, corresponds to the left ctrl key. If the returned data bit is 1, it means that the left ctrl key is pressed, otherwise, the left ctrl key is not pressed. The most significant bit, bit-7, represents the pressing of the right GUI key. The middle bits need to be determined according to the HID Usage Tables specified in the HID protocol. This is usually used to indicate special keys, such as ctrl, shift, del keys, etc.
+#                    // -- Reserved Byte? --
+# 0x95, 0x01,        //   Report Count (1)  The number of above segments we want is 1
+# 0x75, 0x08,        //   Report Size (8)   Each segment has a length of 8 bits
+# 0x81, 0x03,        //   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+#                    // Const signals that the bits have a constant value, thus don't need a Usage. Linux ignore those? I think here it's used to reserver a byte
+#                    // -- LEDS --
+# 0x95, 0x05,        //   Report Count (5)
+# 0x75, 0x01,        //   Report Size (1)
+# 0x05, 0x08,        //   Usage Page (LEDs)
+# 0x19, 0x01,        //   Usage Minimum (Num Lock)
+# 0x29, 0x05,        //   Usage Maximum (Kana)
+# 0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+#                    // -- Padding --
+# 0x95, 0x01,        //   Report Count (1)
+# 0x75, 0x03,        //   Report Size (3)
+# 0x91, 0x03,        //   Output (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
+#                    // Const signals that the bits have a constant value, thus don't need a Usage and basically don't matter? Linux does indeed ignore those. Const is used for padding to align on byte boundaries. Here it makes sense when you add the previous 5 leds bits to these 3 you get 8.
+#                    // The LED section and padding are Outputs, which means the host will send them to the keyboard
+#                    // -- Key Presses --
+# 0x95, 0x06,        //   Report Count (6)          // Input data type is Array (bit 1 is 0), value here is 6, meaning 6 buttons can be simultaneously pressed.
+# 0x75, 0x08,        //   Report Size (8)           // Each button/key is 1 byte to hold the scan code
+# 0x15, 0x00,        //   Logical Minimum (0)
+# 0x25, 0x65,        //   Logical Maximum (101)     // I think this is 101 and not 255 because it's meant to be a boot type keyboard?
+# 0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
+# 0x19, 0x00,        //   Usage Minimum (0x00)
+# 0x29, 0x65,        //   Usage Maximum (0x65)
+# 0x81, 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position, Undefined for input, Bit field) Input is a byte of flags. [Section 6.2.2.5](https://www.usb.org/sites/default/files/hid1_11.pdf)
+# 0xC0,              // End Collection
+# // 63 bytes
+
+
+CONFIG_INDEX=1
+CONFIGS_DIR="configs/c.${CONFIG_INDEX}"
+mkdir -p "$CONFIGS_DIR"
+echo 250 > "${CONFIGS_DIR}/MaxPower" # MaxPower: Power consumtion in mA. Used to compute bMaxPower in the configuration descriptor after considering the bus speed.
+
+CONFIGS_STRINGS_DIR="${CONFIGS_DIR}/strings/0x409"  # Language id https://www.science.co.il/language/Locale-codes.php
+mkdir -p "$CONFIGS_STRINGS_DIR"
+echo "Config ${CONFIG_INDEX}: ECM network" > "${CONFIGS_STRINGS_DIR}/configuration" # The ECM (Ethernet Communication Module) is a serial to Ethernet converter that enables CEM serial communication devices (such as the S600s reader range, InfoProx reader and the DCM controllers), to connect to the AC2000 central system via an Ethernet LAN.
+
+ln -s "$FUNCTIONS_DIR" "${CONFIGS_DIR}/"
+
+# Link the gadget instance to an USB Device Controller. This activates the gadget.
+# See also: https://github.com/postmarketOS/pmbootstrap/issues/338
+ls /sys/class/udc > UDC || echo "Couldn't write UDC"
+# disable with
+# echo "" > UDC
+
+chmod 777 /dev/hidg0
