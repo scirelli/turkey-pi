@@ -58,7 +58,10 @@ func Defaults(config *Config) *Config {
 		config.UiUrl = "http://localhost"
 		logger.Infof("Defaulting UiUrl to '%s'\n", config.UiUrl)
 	}
-
+	if config.InputBufferSize == 0 {
+		config.InputBufferSize = DEFAULT_INPUT_BUFFER_SZ
+		logger.Infof("Defaulting inputBufferSize to '%d'\n", config.InputBufferSize)
+	}
 	return config
 }
 
@@ -71,6 +74,7 @@ type Config struct {
 	ServerUrl string `json:"serverUrl"`
 	UiUrl     string `json:"uiUrl"`
 
-	Debug    bool         `json:"-"`
-	LogLevel log.LogLevel `json:"-"`
+	Debug           bool         `json:"-"`
+	LogLevel        log.LogLevel `json:"-"`
+	InputBufferSize uint         `json:"inputBufferSize"`
 }

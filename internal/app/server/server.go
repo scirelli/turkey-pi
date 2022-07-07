@@ -15,11 +15,17 @@ import (
 	"github.com/scirelli/turkey-pi/pkg/log"
 )
 
+const (
+	DEFAULT_INPUT_BUFFER_SZ uint = 500
+	inputLogLength          uint = 20
+)
+
 func New(config Config, logger log.Logger, kb *keyboard.File) *Server {
 	var server = Server{
-		config:       config,
-		logger:       logger,
-		keyboardFile: kb,
+		config:        config,
+		logger:        logger,
+		keyboardFile:  kb,
+		inputBufferSz: config.InputBufferSize,
 	}
 
 	server.addr = fmt.Sprintf("%s:%d", config.Address, config.Port)
@@ -29,10 +35,11 @@ func New(config Config, logger log.Logger, kb *keyboard.File) *Server {
 }
 
 type Server struct {
-	logger       log.Logger
-	addr         string
-	config       Config
-	keyboardFile *keyboard.File
+	logger        log.Logger
+	addr          string
+	config        Config
+	keyboardFile  *keyboard.File
+	inputBufferSz uint
 }
 
 func (s *Server) Run() {
@@ -63,23 +70,34 @@ func (s *Server) registerStringRoutes(router *mux.Router) *mux.Router {
 
 func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	var b []byte
 	var err error
+	var n int
+	var buf []byte = make([]byte, s.inputBufferSz)
+	var totalCharRead int = 0
 
-	if b, err = io.ReadAll(r.Body); err == nil {
-		s.logger.Infof("%s", string(b))
-	}
+	for {
+		if n, err = r.Body.Read(buf); err == io.EOF {
+			s.logger.Debug("Reached EOF")
+			break
+		} else if err != nil {
+			respondError(w, 503, "Failed read input.")
+			s.logger.Error(err)
+			return
+		}
 
-	if _, err := s.keyboardFile.WriteString(string(b)); err != nil {
-		respondError(w, 502, "Failed to type message.")
-		s.logger.Error(err)
-		return
+		totalCharRead += n
+		if _, err := s.keyboardFile.WriteString(string(buf[:n])); err != nil {
+			respondError(w, 502, "Failed to type message.")
+			s.logger.Error(err)
+			return
+		}
+		s.logger.Debugf("Wrote '%s'...", string(buf[:min(int(inputLogLength), n)]))
 	}
 
 	respondJSON(w, http.StatusAccepted, struct {
 		Msg string `json: "msg"`
 	}{
-		Msg: fmt.Sprintf("Message recieved (%n bytes) and is being typed out", len(b)),
+		Msg: fmt.Sprintf("Message recieved (%d char) and is being typed out", totalCharRead),
 	})
 }
 
@@ -99,4 +117,11 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 // respondError makes the error response with payload as json format
 func respondError(w http.ResponseWriter, code int, message string) {
 	respondJSON(w, code, map[string]string{"error": message})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
