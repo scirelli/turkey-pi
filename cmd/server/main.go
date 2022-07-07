@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/scirelli/turkey-pi/internal/app/server"
@@ -13,13 +14,16 @@ func main() {
 	var logger = log.New("Main", log.DEFAULT_LOG_LEVEL)
 	var configPath string
 	var keyboardFile string
+	var port uint
 	var appConfig *AppConfig
 	var err error
 
-	flag.StringVar(&configPath, "config-path", os.Getenv("SERVER_CONFIG"), "path to the config file.")
+	flag.StringVar(&configPath, "config-path", os.Getenv("SERVER_CONFIG"), "path to the config file (required, attempts to read from 'SERVER_CONFIG' env variable).")
 	flag.StringVar(&configPath, "c", os.Getenv("SERVER_CONFIG"), "path to the config file (shorthand).")
-	flag.StringVar(&keyboardFile, "keyboard-file", "/dev/hidg0", "path to the keyboard device.")
-	flag.StringVar(&keyboardFile, "k", "/dev/hidg0", "path to the keyboard device (shorthand).")
+	flag.StringVar(&keyboardFile, "keyboard-file", "", fmt.Sprintf("path to the keyboard device. (default '%s')", KEYBOARD_DEFAULT_FILE))
+	flag.StringVar(&keyboardFile, "k", "", "path to the keyboard device (shorthand).")
+	flag.UintVar(&port, "port", 0, fmt.Sprintf("Port for server to listen on. (default '%n')", server.DEFAULT_PORT))
+	flag.UintVar(&port, "p", 0, "Port for server to listen on.")
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -37,6 +41,10 @@ func main() {
 	logger.LogLevel = log.GetLevel(appConfig.LogLevel)
 	logger.Infof("Log level set from config file to: '%s'", logger.LogLevel)
 
+	if keyboardFile == "" {
+		keyboardFile = appConfig.KeyboardFile
+	}
+
 	logger.Infof("Keyboard file '%s'", keyboardFile)
 	f, err := os.OpenFile(keyboardFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -45,10 +53,6 @@ func main() {
 	var kf keyboard.File
 	kf.File = *f
 	defer kf.Close()
-
-	if _, err := kf.WriteString("steve\n"); err != nil {
-		logger.Fatal(err)
-	}
 
 	server.New(
 		appConfig.Server,

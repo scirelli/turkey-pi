@@ -18,7 +18,7 @@ run: ./build/.running ## Run the server and scanner
 server: ./build/server ## Run just the webserver
 	rm -f /tmp/kb.txt
 	@cd ./build && \
-	./server  --keyboard-file /tmp/kb.txt --config-path=$(shell pwd)/build/configs/config.json
+	./server  --keyboard-file $$(mktemp --quiet --suffix=_keyboard) --config-path=$(shell pwd)/build/configs/config.json
 
 copy_configs: configs
 	@mkdir -p ./build/configs
@@ -43,7 +43,7 @@ postSomeText: ## Post some text for testing
 		--include \
 		--location \
 		--header "Content-Type: text/plain" \
-		--data 'this is a String' \
+		--data $$'this is a String\n' \
 		localhost:8282/write/string
 	@echo ''
 

@@ -9,6 +9,10 @@ import (
 	"github.com/scirelli/turkey-pi/pkg/log"
 )
 
+const (
+	DEFAULT_PORT uint = 8282
+)
+
 //Load a config file.
 func Load(fileName string) (*Config, error) {
 	var config Config
@@ -38,7 +42,7 @@ func Defaults(config *Config) *Config {
 		config.ContentPath = "."
 	}
 	if config.Port == 0 {
-		config.Port = 8282
+		config.Port = DEFAULT_PORT
 	}
 	if config.ServerUrl == "" {
 		config.ServerUrl = "http://localhost:8282"
@@ -67,6 +71,6 @@ type Config struct {
 	ServerUrl string `json:"serverUrl"`
 	UiUrl     string `json:"uiUrl"`
 
-	Debug    bool         `json:"debug"`
-	LogLevel log.LogLevel `json:"logLevel"`
+	Debug    bool         `json:"-"`
+	LogLevel log.LogLevel `json:"-"`
 }

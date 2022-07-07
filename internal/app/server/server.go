@@ -63,14 +63,23 @@ func (s *Server) registerStringRoutes(router *mux.Router) *mux.Router {
 
 func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+	var b []byte
+	var err error
 
-	if b, err := io.ReadAll(r.Body); err == nil {
+	if b, err = io.ReadAll(r.Body); err == nil {
 		s.logger.Infof("%s", string(b))
 	}
+
+	if _, err := s.keyboardFile.WriteString(string(b)); err != nil {
+		respondError(w, 502, "Failed to type message.")
+		s.logger.Error(err)
+		return
+	}
+
 	respondJSON(w, http.StatusAccepted, struct {
 		Msg string `json: "msg"`
 	}{
-		Msg: "Message recieved and is being typed out",
+		Msg: fmt.Sprintf("Message recieved (%n bytes) and is being typed out", len(b)),
 	})
 }
 
