@@ -3,7 +3,7 @@ SHELL:=/usr/bin/env bash
 
 all: test
 
-build: clean copy_configs ./build/server ## Build the project
+build: clean copy_configs copy_web copy_assets ./build/server ## Build the project
 	@echo 'Done'
 
 ./build/.running:
@@ -18,11 +18,18 @@ run: ./build/.running ## Run the server and scanner
 server: ./build/server ## Run just the webserver
 	rm -f /tmp/kb.txt
 	@cd ./build && \
-	./server  --keyboard-file $$(mktemp --quiet --suffix=_keyboard) --config-path=$(shell pwd)/build/configs/config.json
+	./server  --keyboard-file $$(mktemp -q -t keyboard_) --config-path=$(shell pwd)/build/configs/config.json
 
 copy_configs: configs
 	@mkdir -p ./build/configs
 	@cp -r ./configs/*.json ./build/configs/ || :
+
+copy_web: web
+	@mkdir -p ./build/web
+	@cp -r ./web/static ./build/web/
+
+copy_assets: assets
+	@cp -r ./assets ./build/
 
 .PHONY: test
 test: ## Run all tests

@@ -1,0 +1,29 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html class="no-js" lang="EN">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="author" content="Steve Cirelli">
+        <meta name="description" content="Simple test page for the Turkey-Pi copy and paste application."/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="theme-color" content="#000000"/>
+        <title>Turkey-Pi Test Page</title>
+        <link rel="icon" href="/img/favicon.ico" type="image/x-icon">
+        <script src="js/vendor/debug.js"></script>
+
+        <style>
+            textarea {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <section>
+            <form method="post" action="/write/string">
+                <label for="text">Paste text here:</label>
+                <textarea id="text" name="text"  rows="5" cols="55" autocomplete="on" minlength="1" maxlength="500" autofocus required></textarea>
+                Max 500 characters<br/>
+                <input type="submit" value="Submit"/>
+            </form>
+        </section>
+    </body>
+</html>

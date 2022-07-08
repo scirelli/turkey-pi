@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -63,9 +64,30 @@ Notes:
 	Routes are tested in the order they were added to the router. If two routes match, the first one wins:
 */
 func (s *Server) registerStringRoutes(router *mux.Router) *mux.Router {
-	router.Path("/string").Methods("POST").Handler(handlers.ContentTypeHandler(http.HandlerFunc(s.typeLongStringHandlerFunc), "text/plain")).Name("typeLongStrings")
+	router.Path("/string").Methods("POST").Handler(handlers.ContentTypeHandler(http.HandlerFunc(s.typeLongStringContentTypeRouterHandlerFunc), "text/plain", "application/x-www-form-urlencoded")).Name("typeLongStrings")
 
 	return router
+}
+
+//typeLongStringContentTypeRouterHandlerFunc Route to handler based on content type. This was a quick hack to allow form submission.
+func (s *Server) typeLongStringContentTypeRouterHandlerFunc(w http.ResponseWriter, r *http.Request) {
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		respondError(w, http.StatusUnsupportedMediaType, "")
+		s.logger.Error(err)
+		return
+	}
+	switch {
+	case contentType == "text/plain":
+		s.typeLongStringHandlerFunc(w, r)
+		return
+	case contentType == "application/x-www-form-urlencoded":
+		s.typeLongStringFormHandlerFunc(w, r)
+		return
+	default: //Should never make it here since ContentTypeHandler validates the content types
+		respondError(w, http.StatusUnsupportedMediaType, "")
+		return
+	}
 }
 
 func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +102,7 @@ func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Reques
 			s.logger.Debug("Reached EOF")
 			break
 		} else if err != nil {
-			respondError(w, 503, "Failed read input.")
+			respondError(w, 503, "Failed to read input.")
 			s.logger.Error(err)
 			return
 		}
@@ -98,6 +120,35 @@ func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Reques
 		Msg string `json: "msg"`
 	}{
 		Msg: fmt.Sprintf("Message recieved (%d char) and is being typed out", totalCharRead),
+	})
+}
+
+func (s *Server) typeLongStringFormHandlerFunc(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var err error
+
+	if err = r.ParseForm(); err != nil {
+		respondError(w, 503, "Failed to read form input.")
+		s.logger.Error(err)
+		return
+	}
+
+	text := r.FormValue("text")
+	if text == "" {
+		respondError(w, http.StatusUnprocessableEntity, "Form field 'text' is required")
+		s.logger.Error(err)
+		return
+	}
+	if _, err := s.keyboardFile.WriteString(text); err != nil {
+		respondError(w, 502, "Failed to type message.")
+		s.logger.Error(err)
+		return
+	}
+
+	respondJSON(w, http.StatusAccepted, struct {
+		Msg string `json: "msg"`
+	}{
+		Msg: fmt.Sprintf("Message recieved (%d char) and is being typed out", len(text)),
 	})
 }
 
