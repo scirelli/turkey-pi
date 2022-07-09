@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/scirelli/turkey-pi/internal/app/server"
 	"github.com/scirelli/turkey-pi/pkg/keyboard"
@@ -42,7 +43,7 @@ func main() {
 	logger.Infof("Log level set from config file to: '%s'", logger.LogLevel)
 
 	if keyboardFile == "" {
-		keyboardFile = appConfig.KeyboardFile
+		keyboardFile = appConfig.Keyboard.File
 	}
 
 	logger.Infof("Keyboard file '%s'", keyboardFile)
@@ -52,6 +53,7 @@ func main() {
 	}
 	var kf keyboard.File
 	kf.File = *f
+	kf.StrokeDelay = time.Millisecond * time.Duration(appConfig.Keyboard.StrokeDelayMs)
 	defer kf.Close()
 
 	server.New(

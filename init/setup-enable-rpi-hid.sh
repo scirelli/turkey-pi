@@ -2,7 +2,7 @@
 set -euxo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-enableRPiHIDPath=/opt/enable-rpi-hid.sh
+enableRPiHIDPath=/opt/enable-rpi-hid
 enableRPiHIDPathDir=$(dirname enableRPiHIDPath)
 
 loadKernelModules() {
@@ -24,7 +24,7 @@ loadKernelModules() {
 
 loadKernelModules
 
-cp -v "$SCRIPT_DIR/enableRPiHIDPath" "$enableRPiHIDPathDir"
+cp -v "$SCRIPT_DIR/enable-rpi-hid" "$enableRPiHIDPathDir"
 
 cat <<EOF | tee /lib/systemd/system/usb-keyboard-gadget.service
 [Unit]

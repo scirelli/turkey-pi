@@ -108,7 +108,7 @@ func (s *Server) typeLongStringHandlerFunc(w http.ResponseWriter, r *http.Reques
 		}
 
 		totalCharRead += n
-		if _, err := s.keyboardFile.WriteString(string(buf[:n])); err != nil {
+		if _, err := s.keyboardFile.WriteStringDelayed(string(buf[:n])); err != nil {
 			respondError(w, 502, "Failed to type message.")
 			s.logger.Error(err)
 			return
@@ -139,12 +139,12 @@ func (s *Server) typeLongStringFormHandlerFunc(w http.ResponseWriter, r *http.Re
 		s.logger.Error(err)
 		return
 	}
-	if _, err := s.keyboardFile.WriteString(text); err != nil {
+	if _, err := s.keyboardFile.WriteStringDelayed(text); err != nil {
 		respondError(w, 502, "Failed to type message.")
 		s.logger.Error(err)
 		return
 	}
-
+	s.logger.Debugf("Form text '%s'", text)
 	respondJSON(w, http.StatusAccepted, struct {
 		Msg string `json: "msg"`
 	}{

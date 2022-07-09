@@ -3,11 +3,13 @@ package keyboard
 import (
 	"bytes"
 	"os"
+	"time"
 )
 
 //File represents the keyboard device file in user space /dev/hidg<#>
 type File struct {
 	os.File
+	StrokeDelay time.Duration
 }
 
 /* Keyboard HID Report Descriptor
@@ -44,7 +46,9 @@ Byte
 //   In playing around with sending keystrokes to Linux -
 //     It appears sending a new report clears the old pressed keys? I only needed to send a null report as the last key stroke and things seemed to work.
 //     Reports seem to allow from 1 to 6 keycodes. I was able to send a report of size 3 (bytes), one scan code, and it still worked.
-type Report [8]byte
+const ReportSz int = 8
+
+type Report [ReportSz]byte
 
 func (f *File) WriteString(s string) (n int, err error) {
 	var buf bytes.Buffer = bytes.Buffer{}
@@ -56,6 +60,29 @@ func (f *File) WriteString(s string) (n int, err error) {
 		buf.Write(r[:])
 	}
 	return f.File.Write(buf.Bytes())
+}
+
+func (f *File) WriteStringDelayed(s string) (n int, err error) {
+	var totalBytes int
+
+	for _, c := range s {
+		modifier, keycode := ASCII_to_keycode(byte(c))
+		r := Report{modifier, 0, keycode, 0, 0, 0, 0, 0}
+		if n, err = f.File.Write(r[:]); err != nil {
+			totalBytes += n
+			return totalBytes, err
+		}
+		totalBytes += n
+		time.Sleep(f.StrokeDelay)
+		r = Report{0, 0, 0, 0, 0, 0, 0, 0}
+		if n, err = f.File.Write(r[:]); err != nil {
+			totalBytes += n
+			return totalBytes, err
+		}
+		totalBytes += n
+		time.Sleep(f.StrokeDelay)
+	}
+	return totalBytes, nil
 }
 
 // void pressKey(uint8_t modifiers, uint8_t keycode1, uint8_t keycode2, uint8_t keycode3, uint8_t keycode4, uint8_t keycode5, uint8_t keycode6);

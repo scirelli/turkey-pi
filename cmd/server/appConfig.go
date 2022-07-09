@@ -46,9 +46,9 @@ func Defaults(config *AppConfig) *AppConfig {
 		logger.Infof("Setting server log level to '%s'", config.Server.LogLevel)
 	}
 
-	if config.KeyboardFile == "" {
-		config.KeyboardFile = KEYBOARD_DEFAULT_FILE
-		logger.Infof("Defaulting keyboard file to '%s'", config.KeyboardFile)
+	if config.Keyboard.File == "" {
+		config.Keyboard.File = KEYBOARD_DEFAULT_FILE
+		logger.Infof("Defaulting keyboard file to '%s'", config.Keyboard.File)
 	}
 
 	config.Server.Debug = config.Debug
@@ -62,8 +62,13 @@ func Defaults(config *AppConfig) *AppConfig {
 type AppConfig struct {
 	Debug              bool              `json:"debug"`
 	LogLevel           string            `json:"logLevel"`
-	KeyboardFile       string            `json:"keyboardFile"`
 	CharacterToKeyFile string            `json:"characterToKeyFile,omitempty"`
 	CharacterToKeyMap  map[string]string `json:"characterToKeyMap"`
+	Keyboard           keyboardConfig    `json:"keyboard"`
 	Server             server.Config     `json: "server,omitempty"`
+}
+
+type keyboardConfig struct {
+	File          string `json:"file"`
+	StrokeDelayMs int    `json:"StrokeDelayMs"`
 }

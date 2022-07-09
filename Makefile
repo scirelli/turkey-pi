@@ -54,6 +54,12 @@ postSomeText: ## Post some text for testing
 		localhost:8282/write/string
 	@echo ''
 
+install: /sys/kernel/config/usb_gadget/g1/strings/0x409/manufacturer/turkey-pi build
+	./init/setup-enable-rpi-hid.sh
+
+/sys/kernel/config/usb_gadget/g1/strings/0x409/manufacturer/turkey-pi: init/enable-rpi-hid
+	./init/enable-rpi-hid
+
 .PHONY: help
 help: ## Show help message
 	@grep -E '^[[:alnum:]_-]+[[:blank:]]?:.*##' $(MAKEFILE_LIST) \
